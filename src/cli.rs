@@ -2,9 +2,10 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 pub struct Cli {
-    #[structopt(short, long)]
-    debug: bool,
-
-    #[structopt(short)]
     symbol: String,
 }
+
+impl Cli { 
+    pub fn from_args() -> Cli { <Cli as StructOpt>::from_args() }
+}
+

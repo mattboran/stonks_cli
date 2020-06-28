@@ -1,16 +1,14 @@
-use std::env;
-use structopt::StructOpt;
-// mod cli;
+mod cli;
+use cli::Cli;
 
-#[derive(Debug, StructOpt)]
-pub struct Cli {
-    #[structopt(short, long)]
-    debug: bool,
+mod api;
+use api::get_api_key;
 
-    #[structopt(short)]
-    symbol: String,
-}
 fn main() {
     let args = Cli::from_args();
     println!("{:?}", args);
+    match get_api_key() {
+        Some(s) => println!("Tradier Key: {}", s),
+        None => println!("Can't get API key")
+    }
 }
