@@ -1,6 +1,8 @@
 use dotenv::dotenv;
 use reqwest::{Client, Url};
 use reqwest::header::*;
+use serde_json::Result as JsonResult;
+use serde::{Serialize, Deserialize};
 
 type Result<T> = std::result::Result<T, ApiError>;
 
@@ -50,6 +52,7 @@ fn get_client() -> Result<Client> {
         .map_err(|_| ApiError::SetUpError)
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Quote { 
     pub ask: f32,
     pub bid: f32,
