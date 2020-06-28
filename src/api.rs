@@ -1,21 +1,54 @@
-extern crate dotenv;
-
 use dotenv::dotenv;
+use reqwest::{Client, Url};
+use reqwest::header::*;
 
-const ENDPOINT: &str = "https://sandbox.tradier.com/v1/";
+type Result<T> = std::result::Result<T, ApiError>;
 
-pub fn get_api_key() -> Option<String> { 
-    dotenv().ok();
-    let result = dotenv::var("TRADIER_ACCESS_TOKEN");
-    match result {
-        Ok(result) => Some(result),
-        Err(_) => None
+const BASE_URL: &str = "https://sandbox.tradier.com/v1/";
+
+#[derive(Debug, Clone)]
+enum ApiError { 
+    SetUpError,
+    NetworkError { code: i32, msg: String }
+}
+
+trait Requestable {
+    fn url(&self) -> Result<Url>;
+}
+
+#[derive(Debug, Clone)]
+enum ApiEndpoint { 
+    Market { symbols: Vec<String> }
+}
+
+impl Requestable for ApiEndpoint { 
+    fn url(&self) -> Result<Url> { 
+        match self {
+            ApiEndpoint::Market { symbols } => {
+                let symbols = symbols.join(",");
+                Url::parse_with_params(BASE_URL, &[("symbols", symbols)])
+                    .map_err(|_| ApiError::SetUpError)
+            }
+        }
     }
 }
 
-// pub fn get_stock_quote() -> Quote { 
+fn get_tradier_api_key() -> Result<String> { 
+    dotenv().ok();
+    dotenv::var("TRADIER_ACCESS_TOKEN")
+        .map_err(|_| ApiError::SetUpError)
+}
 
-// }
+fn get_client() -> Result<Client> {
+    let mut headers = HeaderMap::new();
+    let auth = format!("Bearer {key}", key = get_tradier_api_key()?);
+    headers.append(AUTHORIZATION, auth.parse().unwrap());
+    headers.append(CONTENT_TYPE, "appplication/json".parse().unwrap());
+    Client::builder()
+        .default_headers(headers)
+        .build()
+        .map_err(|_| ApiError::SetUpError)
+}
 
 pub struct Quote { 
     pub ask: f32,

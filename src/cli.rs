@@ -2,7 +2,7 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 pub struct Cli {
-    pub symbol: String,
+    pub symbols: Vec<String>,
 }
 
 impl Cli { 
