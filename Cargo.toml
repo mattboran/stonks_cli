@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 structopt = "0.3.13"
 dotenv = "0.15.0"
+reqwest = "0.10.6"
+serde = "1.0.114"
