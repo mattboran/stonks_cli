@@ -15,7 +15,7 @@ pub enum Error {
 
 pub async fn get_stock_quote(symbols: Vec<String>) -> Result<quote::QuotesDataModel> {
     let client = get_client()?;
-    let url = ApiEndpoint::Quotes {symbols: symbols}.url()?;
+    let url = ApiEndpoint::Quotes { symbols }.url()?;
 
     match client.get(url).send().await {
         Ok(res) => parse_quote(res).await,
@@ -28,9 +28,8 @@ async fn parse_quote(resp: reqwest::Response) -> Result<quote::QuotesDataModel> 
         .await
         .map_err(|_| Error::DeserializationError)?;
     let v = body.to_vec();
-    let s = String::from_utf8_lossy(&v);
-    println!("Parsed response: {}", s);
-    Err(Error::UnknownError)
+    let s = String::from_utf8(v).map_err(|_| Error::UnknownError)?;
+    serde_json::from_str(&s).map_err(|_| Error::DeserializationError)
 }
 
 fn get_tradier_api_key() -> Result<String> { 

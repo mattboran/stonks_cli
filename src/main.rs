@@ -8,7 +8,7 @@ async fn main() {
     let action = api::client::get_stock_quote(args.symbols);
 
     match action.await {
-        Ok(result) => { println!("Result {:?}", result)}
+        Ok(result) => { println!("Result {:#?}", result)}
         Err(error) => { println!("Error {:?}", error) }
     }
 }
