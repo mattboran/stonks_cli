@@ -6,7 +6,7 @@
             "request": "launch",
             "name": "Debug",
             "program": "${workspaceRoot}/target/debug/stonks_cli",
-            "args": [],
+            "args": ["amd","spy"],
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "cargo",
             "sourceLanguages": ["rust"]
