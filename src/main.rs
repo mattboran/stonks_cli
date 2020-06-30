@@ -17,7 +17,10 @@ async fn main() -> Result<(), std::io::Error> {
     }).await?;
     
     match symbols_result {
-        Ok(symbols) => { println!("Loaded {} symbols.", symbols.len()); Ok(()) }, 
+        Ok(symbols) => { 
+            println!("Loaded {} symbols.", symbols.symbols.len());
+            Ok(symbols::refresh_symbol_file_if_necessary(&symbols).unwrap())
+        },
         Err(err) => Err(err)
     }
 }
