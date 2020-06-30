@@ -50,14 +50,13 @@ pub struct SymbolLoadingResult {
 pub fn load_symbols_from_file() -> Result<SymbolLoadingResult, std::io::Error> { 
 
     let contents = fs::read_to_string(symbols_file_path())?;
-    let mut lines: Vec<&str> = contents.split("\n").collect();
-    let num_lines = lines.len();
-    lines.truncate(num_lines - 1);
+    let lines: Vec<&str> = contents.split("\n").collect();
+    // Remove the first line (header) and last line (empty newline)
+    let lines = &lines[1..lines.len() - 1];
 
     if let Some((last_line, elements)) = lines.split_last() {
         let file_creation_date = get_file_creation_date(last_line);
-        let symbols: Vec<Symbol> = elements
-            .into_iter()
+        let symbols = elements.into_iter()
             .map(|line| Symbol::new(*line))
             .collect();
         return Ok(SymbolLoadingResult { symbols, file_creation_date })
@@ -67,10 +66,11 @@ pub fn load_symbols_from_file() -> Result<SymbolLoadingResult, std::io::Error> {
 
 pub fn refresh_symbol_file_if_necessary(result: &SymbolLoadingResult) -> Result<(), Box<dyn std::error::Error>> { 
     if !is_symbol_file_outdated(result.file_creation_date) {
-        println!("No need to refresh symbol file");
         return Ok(())
     } 
-    println!("Refreshing file");
+    
+    println!("Symbol file is stale - refreshing.");
+    // Fetch a fresh copy of the file from the Nasdaqtrader FTP server
     let mut ftp_stream =  FtpStream::connect("206.200.251.105:21")?;
     ftp_stream.login("anonymous", "anonymous")?;
     ftp_stream.cwd("/SymbolDirectory")?;
@@ -78,10 +78,9 @@ pub fn refresh_symbol_file_if_necessary(result: &SymbolLoadingResult) -> Result<
     let bytes = &remote_file.into_inner()[..];
     ftp_stream.quit()?;
             
-    println!("Got FTP file from ftp.nasdaqtrader.com/nasdaqlisted.txt");
+    // Write to filesystem
     let mut buffer = File::create(symbols_file_path())?;
     buffer.write_all(&bytes)?;
-
     println!("Saved to {:?}", symbols_file_path());
     Ok(())
 }
@@ -93,6 +92,8 @@ fn get_file_creation_date(line: &str) -> Date<FixedOffset> {
     let hour = 3600;
     let est = chrono::FixedOffset::west(5 * hour);
 
+    // If we can't parse the file creation date, just assume it's today's date.symbols
+    // That means the file won't be refreshed. Is this bad?
     if let None = end_index {
         let local_date = chrono::offset::Local::today().naive_local();
         est.from_local_date(&local_date).unwrap()
