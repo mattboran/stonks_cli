@@ -1,7 +1,9 @@
-use std::fs;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use std::io::{Error, ErrorKind};
+use std::io::{Write, Error, ErrorKind};
 use chrono::{Date, FixedOffset, TimeZone};
+
+use ftp::FtpStream;
 
 /// Symbol represents the symbol for a single NASDAQ security
 pub struct Symbol { 
@@ -16,7 +18,9 @@ pub struct Symbol {
 }
 
 impl Symbol { 
+
     fn new(line: &str) -> Symbol { 
+    
         let components: Vec<&str> = line.split("|").collect();
         let round_lot_size: u16;
         if let Ok(result) = components[5].parse::<u16>() {
@@ -44,10 +48,12 @@ pub struct SymbolLoadingResult {
 
 /// This method is blocking.
 pub fn load_symbols_from_file() -> Result<SymbolLoadingResult, std::io::Error> { 
+
     let contents = fs::read_to_string(symbols_file_path())?;
     let mut lines: Vec<&str> = contents.split("\n").collect();
     let num_lines = lines.len();
     lines.truncate(num_lines - 1);
+
     if let Some((last_line, elements)) = lines.split_last() {
         let file_creation_date = get_file_creation_date(last_line);
         let symbols: Vec<Symbol> = elements
@@ -59,22 +65,34 @@ pub fn load_symbols_from_file() -> Result<SymbolLoadingResult, std::io::Error> {
     return Err(Error::new(ErrorKind::Other, "Error parsing symbol file"))
 }
 
-pub fn refresh_symbol_file_if_necessary(result: &SymbolLoadingResult) -> Result<(), ()> { 
+pub fn refresh_symbol_file_if_necessary(result: &SymbolLoadingResult) -> Result<(), Box<dyn std::error::Error>> { 
     if !is_symbol_file_outdated(result.file_creation_date) {
         println!("No need to refresh symbol file");
-        Ok(())
-    } else { 
-        println!("Need to refresh symbol file");
-        Ok(())
-    }
+        return Ok(())
+    } 
+    println!("Refreshing file");
+    let mut ftp_stream =  FtpStream::connect("206.200.251.105:21")?;
+    ftp_stream.login("anonymous", "anonymous")?;
+    ftp_stream.cwd("/SymbolDirectory")?;
+    let remote_file = ftp_stream.simple_retr("nasdaqlisted.txt")?;
+    let bytes = &remote_file.into_inner()[..];
+    ftp_stream.quit()?;
+            
+    println!("Got FTP file from ftp.nasdaqtrader.com/nasdaqlisted.txt");
+    let mut buffer = File::create(symbols_file_path())?;
+    buffer.write_all(&bytes)?;
 
+    println!("Saved to {:?}", symbols_file_path());
+    Ok(())
 }
 
 fn get_file_creation_date(line: &str) -> Date<FixedOffset> { 
+
     let start_index = "File Creation Time: ".len();
     let end_index = line.find("|");
     let hour = 3600;
     let est = chrono::FixedOffset::west(5 * hour);
+
     if let None = end_index {
         let local_date = chrono::offset::Local::today().naive_local();
         est.from_local_date(&local_date).unwrap()
