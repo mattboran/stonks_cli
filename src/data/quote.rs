@@ -22,7 +22,8 @@ pub struct Quote {
     pub volume: u32, 
     pub week_52_high: f32,
     pub week_52_low: f32,
-    pub open: f32,
+    pub open: Option<f32>,
+    pub close: Option<f32>,
     pub last: f32,
     pub description: String,
     #[serde(rename(deserialize = "change"))]
