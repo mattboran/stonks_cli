@@ -49,27 +49,38 @@ pub struct SymbolLoadingResult {
 /// This method is blocking.
 pub fn load_symbols_from_file() -> Result<SymbolLoadingResult, std::io::Error> { 
 
-    let contents = fs::read_to_string(symbols_file_path())?;
-    let lines: Vec<&str> = contents.split("\n").collect();
-    // Remove the first line (header) and last line (empty newline)
-    let lines = &lines[1..lines.len() - 1];
-
-    if let Some((last_line, elements)) = lines.split_last() {
-        let file_creation_date = get_file_creation_date(last_line);
-        let symbols = elements.into_iter()
-            .map(|line| Symbol::new(*line))
-            .collect();
-        return Ok(SymbolLoadingResult { symbols, file_creation_date })
+    if let Ok(contents) = fs::read_to_string(symbols_file_path()) {
+        let lines: Vec<&str> = contents.split("\n").collect();
+        // Remove the first line (header) and last line (empty newline)
+        let lines = &lines[1..lines.len() - 1];
+    
+        if let Some((last_line, elements)) = lines.split_last() {
+            let file_creation_date = get_file_creation_date(last_line);
+            let symbols = elements.into_iter()
+                .map(|line| Symbol::new(*line))
+                .collect();
+            return Ok(SymbolLoadingResult { symbols, file_creation_date })
+        }
+        return Err(Error::new(ErrorKind::Other, "Error parsing symbol file"))
+    } else {
+        std::fs::create_dir_all("./data")?;
+        if let Ok(_) = fetch_symbol_file() {
+            return load_symbols_from_file()
+        } else { 
+            return Err(Error::new(ErrorKind::Other, "Error fetching symbol file"))
+        }
     }
-    return Err(Error::new(ErrorKind::Other, "Error parsing symbol file"))
 }
 
 pub fn refresh_symbol_file_if_necessary(result: &SymbolLoadingResult) -> Result<(), Box<dyn std::error::Error>> { 
     if !is_symbol_file_outdated(result.file_creation_date) {
         return Ok(())
     } 
-    
     println!("Symbol file is stale - refreshing.");
+    fetch_symbol_file()
+}
+
+fn fetch_symbol_file() -> Result<(), Box<dyn std::error::Error>> {
     // Fetch a fresh copy of the file from the Nasdaqtrader FTP server
     let mut ftp_stream =  FtpStream::connect("206.200.251.105:21")?;
     ftp_stream.login("anonymous", "anonymous")?;
