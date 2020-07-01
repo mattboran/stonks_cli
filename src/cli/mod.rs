@@ -1,6 +1,9 @@
 mod symbols;
 use tokio::task;
 
+use std::convert::From;
+use std::io;
+
 pub use symbols::{
     Symbol, 
     SymbolLoadingResult,
@@ -14,11 +17,12 @@ pub enum CliError {
 
 pub async fn initialize() -> Result<SymbolLoadingResult, CliError> {
     let symbols_result = task::spawn_blocking(move || {
-        symbols::read_symbols_file().or_else(|_| {
-            retry_loading_symbols()
-        })
-    }).await
-      .map_err(|_| CliError::InitError { msg: "Error loading symbols file".to_string() })?;
+        symbols::read_symbols_file()
+            .or_else(|_| retry_loading_symbols())
+    })
+        .await
+        .unwrap()
+        .map_err(CliError::from);
 
     return symbols_result
         .and_then(|result| { 
@@ -29,13 +33,16 @@ pub async fn initialize() -> Result<SymbolLoadingResult, CliError> {
                     .map_err(|_| CliError::RefreshSymbolFileError)
             });
             Ok(result) 
-        }).map_err(|err| CliError::InitError { msg: err.to_string() });
+        }).map_err(CliError::from);
 }
 
-pub fn retry_loading_symbols() -> Result<SymbolLoadingResult, std::io::Error> { 
-    symbols::create_data_dir_if_necessary().and_then(|_| {
-        // Swallow error from the next call.
-        symbols::fetch_symbol_file();
-        symbols::read_symbols_file()
-    })
+pub fn retry_loading_symbols() -> Result<SymbolLoadingResult, CliError> { 
+    symbols::fetch_and_write_symbol_file()?;
+    symbols::read_symbols_file().map_err(CliError::from)
+}
+
+impl From<io::Error> for CliError {
+    fn from(err: io::Error) -> Self {
+        CliError::InitError { msg: err.to_string() }
+    }
 }

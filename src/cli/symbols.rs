@@ -1,11 +1,13 @@
-use std::io::{Write, Error, ErrorKind};
+use std::io::{self, Write};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use chrono::{Date, FixedOffset, TimeZone};
 
-use ftp::FtpStream;
+use ftp::{FtpStream};
 
+const SYMBOLS_DIRECTORY: &str = "SymbolDirectory";
+const SYMBOLS_FILENAME: &str = "nasdaqlisted.txt";
 /// Symbol represents the symbol for a single NASDAQ security
 pub struct Symbol { 
     symbol: String,
@@ -19,7 +21,7 @@ pub struct Symbol {
 }
 
 impl FromStr for Symbol { 
-    type Err = Error;
+    type Err = io::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let components: Vec<&str> = s.split("|").collect();
@@ -50,14 +52,14 @@ pub enum MarketCategory {
 }
 
 impl FromStr for MarketCategory { 
-    type Err = Error;
+    type Err = io::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Q" => Ok(Self::GlobalSelectMarketSM),
             "G" => Ok(Self::GlobalMarketSM),
             "S" => Ok(Self::CapitalMarket),
-            _ => Err(Error::new(ErrorKind::Other, "Error parsing market category."))
+            _ => Err(io::Error::new(io::ErrorKind::Other, "Error parsing market category."))
         }
     }
 }
@@ -74,7 +76,7 @@ pub enum FinancialStatus {
 }
 
 impl FromStr for FinancialStatus { 
-    type Err = Error;
+    type Err = io::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -86,7 +88,7 @@ impl FromStr for FinancialStatus {
             "H" => Ok(Self::DeficientAndDelinquent),
             "J" => Ok(Self::DelinquentAndBankrupt),
             "K" => Ok(Self::DeficientDelinquentAndBankrupt),
-            _ => Err(Error::new(ErrorKind::Other, "Error parsing financial status.")),
+            _ => Err(io::Error::new(io::ErrorKind::Other, "Error parsing financial status.")),
             
         }
     }
@@ -97,7 +99,7 @@ pub struct SymbolLoadingResult {
     pub file_creation_date: Date<FixedOffset>,
 }
 
-pub fn read_symbols_file() -> Result<SymbolLoadingResult, std::io::Error> {
+pub fn read_symbols_file() -> Result<SymbolLoadingResult, io::Error> {
     let contents = fs::read_to_string(symbols_file_path())?;
     let lines: Vec<&str> = contents.split("\n").collect();
     // Remove the first line (header) and last line (empty newline)
@@ -112,27 +114,40 @@ pub fn read_symbols_file() -> Result<SymbolLoadingResult, std::io::Error> {
     Ok(SymbolLoadingResult { symbols, file_creation_date })
 }
 
-pub fn create_data_dir_if_necessary() -> Result<(), std::io::Error> {
-    std::fs::create_dir_all("./data")
+// These functions correspond to fetching and refreshing the symbols file
+
+pub fn create_dir_if_necessary() -> Result<(), io::Error> {
+    std::fs::create_dir_all(SYMBOLS_DIRECTORY)
 }
 
-pub fn refresh_symbol_file_if_necessary(creation_date: Date<FixedOffset>) -> Result<(), Box<dyn std::error::Error>> { 
-    if !is_symbol_file_outdated(creation_date) {
-        return Ok(())
-    } 
-    println!("Symbol file is stale - refreshing.");
-    fetch_symbol_file()
+pub fn refresh_symbol_file_if_necessary(creation_date: Date<FixedOffset>) -> Result<(), io::Error> { 
+    if is_symbol_file_outdated(creation_date) {
+        println!("Symbol file is stale - refreshing.");
+        fetch_and_write_symbol_file()
+    } else {
+        Ok(())
+    }
 }
 
-pub fn fetch_symbol_file() -> Result<(), Box<dyn std::error::Error>> {
+pub fn fetch_and_write_symbol_file() -> Result<(), io::Error> {
+    create_dir_if_necessary()?;
+    let bytes = fetch_symbol_file()
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+    write_symbol_file(&bytes[..])
+}
+
+fn fetch_symbol_file() -> Result<Vec<u8>, ftp::FtpError> {
     // Fetch a fresh copy of the file from the Nasdaqtrader FTP server
     let mut ftp_stream =  FtpStream::connect("206.200.251.105:21")?;
     ftp_stream.login("anonymous", "anonymous")?;
-    ftp_stream.cwd("/SymbolDirectory")?;
-    let remote_file = ftp_stream.simple_retr("nasdaqlisted.txt")?;
-    let bytes = &remote_file.into_inner()[..];
+    ftp_stream.cwd(SYMBOLS_DIRECTORY)?;
+    let remote_file = ftp_stream.simple_retr(SYMBOLS_FILENAME)?;
+    let bytes = remote_file.into_inner();
     ftp_stream.quit()?;
-            
+    Ok(bytes)
+}      
+
+fn write_symbol_file(bytes: &[u8]) -> Result<(), std::io::Error> {
     // Write to filesystem
     let mut buffer = File::create(symbols_file_path())?;
     buffer.write_all(&bytes)?;
@@ -168,5 +183,5 @@ fn is_symbol_file_outdated(creation_date: Date<FixedOffset>) -> bool {
 }
 
 fn symbols_file_path() -> PathBuf { 
-    Path::new("./data").join("nasdaqlisted.txt")
+    Path::new(SYMBOLS_DIRECTORY).join(SYMBOLS_FILENAME)
 }
