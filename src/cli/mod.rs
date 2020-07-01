@@ -1,55 +1,31 @@
 mod symbols;
 mod options;
-use tokio::task;
+mod loader;
 
 use std::convert::From;
 use std::io;
 
-pub use symbols::{
-    Symbol, 
-    SymbolLoadingResult,
-};
-
-pub use options::{
-    Option,
-    OptionLoadingResult,
-};
-
-pub struct LoadingResult { 
-    symbols: SymbolLoadingResult,
-    options: OptionLoadingResult
-}
+pub use symbols::Symbol;
+pub use options::Option;
 
 #[derive(Debug)]
 pub enum CliError {
     InitError { msg: String },
     RefreshSymbolFileError,
+    TaskError,
 }
 
-pub async fn initialize() -> Result<SymbolLoadingResult, CliError> {
-    let symbols_result = task::spawn_blocking(move || {
-        symbols::read_symbols_file()
-            .or_else(|_| retry_loading_symbols())
-    })
-        .await
-        .unwrap()
-        .map_err(CliError::from);
+pub async fn initialize() -> Result<(), CliError> {
+    let symbols = loader::load::<Symbol>()?;
+    println!("Loaded {} symbols", symbols.len());
 
-    return symbols_result
-        .and_then(|result| { 
-            println!("Loaded {} symbols.", result.symbols.len());
-            let date = result.file_creation_date;
-            task::spawn(async move {
-                symbols::refresh_symbol_file_if_necessary(date)
-                    .map_err(|_| CliError::RefreshSymbolFileError)
-            });
-            Ok(result) 
-        }).map_err(CliError::from);
-}
-
-pub fn retry_loading_symbols() -> Result<SymbolLoadingResult, CliError> { 
-    symbols::fetch_and_write_symbol_file()?;
-    symbols::read_symbols_file().map_err(CliError::from)
+    let option_box = Box::new(|opt: Result<Vec<Option>, CliError>| {
+        if let Ok(options) = opt {
+            println!("Loaded {} options", options.len());
+        }
+    });
+    loader::load_with_callback::<Option>(option_box).await;
+    Ok(())
 }
 
 impl From<io::Error> for CliError {
