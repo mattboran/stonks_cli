@@ -1,4 +1,5 @@
 mod symbols;
+mod options;
 use tokio::task;
 
 use std::convert::From;
@@ -8,6 +9,16 @@ pub use symbols::{
     Symbol, 
     SymbolLoadingResult,
 };
+
+pub use options::{
+    Option,
+    OptionLoadingResult,
+};
+
+pub struct LoadingResult { 
+    symbols: SymbolLoadingResult,
+    options: OptionLoadingResult
+}
 
 #[derive(Debug)]
 pub enum CliError {

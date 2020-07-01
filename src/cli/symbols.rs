@@ -4,20 +4,20 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use chrono::{Date, FixedOffset, TimeZone};
 
-use ftp::{FtpStream};
+use ftp::FtpStream;
 
 const SYMBOLS_DIRECTORY: &str = "SymbolDirectory";
 const SYMBOLS_FILENAME: &str = "nasdaqlisted.txt";
 /// Symbol represents the symbol for a single NASDAQ security
 pub struct Symbol { 
-    symbol: String,
-    security_name: String,
-    market_category: MarketCategory,
-    test_issue: bool,
-    financial_status: FinancialStatus,
-    round_lot_size: u16,
-    etf: bool,
-    next_shares: bool
+    pub symbol: String,
+    pub security_name: String,
+    pub market_category: MarketCategory,
+    pub test_issue: bool,
+    pub financial_status: FinancialStatus,
+    pub round_lot_size: u16,
+    pub etf: bool,
+    pub next_shares: bool
 }
 
 impl FromStr for Symbol { 
