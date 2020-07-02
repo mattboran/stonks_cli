@@ -20,3 +20,5 @@ tokio = {"version"= "0.2", features=["rt-threaded", "macros", "blocking"]}
 chrono = "0.4"
 ftp = "3.0"
 futures = "0.3"
+tui = "0.9"
+termion = "1.5"

@@ -48,12 +48,6 @@ pub fn load<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
     }
 }
 
-pub async fn load_with_callback<T: Downloadable + std::str::FromStr + 'static>(on_complete: Box<dyn FnOnce(Result<Vec<T>, CliError>) + Send>) {
-    tokio::spawn(async move{
-        on_complete(load::<T>())
-    });
-}
-
 fn fetch_helper<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
     let mut ftp_stream = create_ftp_stream()
         .map_err(|err| CliError::InitError{ msg: err.to_string() })?;

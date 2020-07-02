@@ -2,26 +2,25 @@ mod api;
 mod cli;
 mod data;
 
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use cli::App;
+
 #[tokio::main]
 async fn main() -> Result<(), cli::CliError> {
-    let result = cli::initialize().await;
+    let app = Arc::new(Mutex::new(App {
+        title: format!("StonksCLI"),
+        options: vec![],
+        symbols: vec![],
+    }));
+    let result = cli::initialize(Arc::clone(&app)).await;
     let mut i = 0;
-    loop {
-        println!("Iteration {}", i);
-        tokio::time::delay_for(tokio::time::Duration::new(1, 0)).await;
+    while i < 300 {
+        let cloned_app = Arc::clone(&app);
+        let app = cloned_app.lock().await;
+        println!("{}: {} symbols, {} options", i, app.symbols.len(), app.options.len());
+        tokio::time::delay_for(tokio::time::Duration::new(0, 50000000)).await;
         i = i + 1;
-        if i == 10 { 
-            break;
-        }
     }
-    match result {
-        Ok(_) => {
-            println!("Initialize complete");
-            Ok(())
-        },
-        Err(err) => { 
-            println!("Got cli error: {:?}", err);
-            Err(err)
-        },
-    }
+    result
 }
