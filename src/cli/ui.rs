@@ -1,67 +1,68 @@
-// use crate::cli::App;
+use std::io;
 
-// use tui::{
-//     backend::Backend,
-//     layout::{Constraint, Direction, Layout, Rect},
-//     style::{Color, Modifier, Style},
-//     symbols,
-//     widgets::canvas::{Canvas, Line, Map, MapResolution, Rectangle},
-//     widgets::{
-//         Axis, BarChart, Block, Borders, Chart, Dataset, Gauge, List, Paragraph, Row, Sparkline,
-//         Table, Tabs, Text,
-//     },
-//     Frame,
-// };
+use termion::raw::IntoRawMode;
+use tui::{
+    backend::{Backend, TermionBackend}, 
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    symbols,
+    widgets::{Widget, Block, Borders, Paragraph, Text},
+    Frame
+};
 
-// pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-//     let chunks = Layout::default()
-//         .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
-//         .split(f.size());
-//     draw_main_tab(f, app, chunks[1]);
-// }
+use crate::cli::App;
 
-// fn draw_main_tab<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
-// where
-//     B: Backend,
-// {
-//     let chunks = Layout::default()
-//         .constraints(
-//             [
-//                 Constraint::Length(7),
-//                 Constraint::Min(7),
-//                 Constraint::Length(7),
-//             ]
-//             .as_ref(),
-//         )
-//         .split(area);
-//     draw_text(f, chunks[2]);
-// }
+pub type Terminal = tui::Terminal<TermionBackend<termion::raw::RawTerminal<io::Stdout>>>;
 
-// fn draw_text<B>(f: &mut Frame<B>, area: Rect)
-// where
-//     B: Backend,
-// {
-//     let text = [
-//         Text::raw("This is a paragraph with several lines. You can change style your text the way you want.\n\nFor example: "),
-//         Text::styled("under", Style::default().fg(Color::Red)),
-//         Text::raw(" "),
-//         Text::styled("the", Style::default().fg(Color::Green)),
-//         Text::raw(" "),
-//         Text::styled("rainbow", Style::default().fg(Color::Blue)),
-//         Text::raw(".\nOh and if you didn't "),
-//         Text::styled("notice", Style::default().modifier(Modifier::ITALIC)),
-//         Text::raw(" you can "),
-//         Text::styled("automatically", Style::default().modifier(Modifier::BOLD)),
-//         Text::raw(" "),
-//         Text::styled("wrap", Style::default().modifier(Modifier::REVERSED)),
-//         Text::raw(" your "),
-//         Text::styled("text", Style::default().modifier(Modifier::UNDERLINED)),
-//         Text::raw(".\nOne more thing is that it should display unicode characters: 10€")
-//     ];
-//     let block = Block::default()
-//         .borders(Borders::ALL)
-//         .title("Footer")
-//         .title_style(Style::default().fg(Color::Magenta).modifier(Modifier::BOLD));
-//     let paragraph = Paragraph::new(text.iter()).block(block).wrap(true);
-//     f.render_widget(paragraph, area);
-// }
+pub fn initialize_terminal() -> Result<Terminal, io::Error> {
+    let stdout = io::stdout().into_raw_mode()?;
+    let backend = TermionBackend::new(stdout);
+    Ok(Terminal::new(backend)?)
+}
+
+pub fn draw<B: Backend>(f: &mut Frame<B>, app: &App) {
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([
+            Constraint::Length(3), 
+            Constraint::Min(0),
+            Constraint::Length(3),
+        ].as_ref())
+        .split(f.size());
+        
+    draw_header(f, app, chunks[0]);
+    draw_main_area(f, app, chunks[1]);
+    draw_log_section(f, app, chunks[2]);
+}
+    
+fn draw_header<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {
+    let block = Block::default()
+        .title(&app.title)
+        .borders(Borders::ALL);
+    f.render_widget(block, area);
+}
+
+fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(50),
+            Constraint::Percentage(50)
+        ]).split(area);
+    
+}
+
+fn draw_log_section<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {
+    let default =  &"".to_string();
+    let log = if let Some(log) = app.log.last() { log } else { default };
+    let text = [
+        Text::styled(log, Style::default().modifier(Modifier::ITALIC))
+    ];
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Log");
+    let paragraph = Paragraph::new(text.iter()).block(block).wrap(false);
+    f.render_widget(paragraph, area);
+}

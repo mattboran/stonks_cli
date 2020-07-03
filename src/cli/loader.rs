@@ -2,13 +2,9 @@ use std::{io, io::Write};
 use std::{fs, fs::File};
 use std::path::{Path, PathBuf};
 
-use crate::cli::{
-    symbols::Symbol,
-    options::Option,
-    CliError
-};
-
-use chrono::{Date, FixedOffset, TimeZone};
+use crate::cli::CliError;
+use crate::data::{Symbol, Option};
+use chrono::{Date, Datelike, FixedOffset, Local, TimeZone};
 use ftp::FtpStream;
 
 const SYMBOLS_DIRECTORY: &str = "SymbolDirectory";
@@ -34,6 +30,12 @@ impl Downloadable for Option {
     fn filepath() -> PathBuf { Path::new(SYMBOLS_DIRECTORY).join(OPTIONS_FILENAME) }   
 }
 
+impl From<io::Error> for CliError {
+    fn from(err: io::Error) -> Self {
+        CliError::InitError { msg: err.to_string() }
+    }
+}
+
 pub fn load<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
     let data = read_nasdaq_file::<T>();
     if data.is_err() {
@@ -48,6 +50,7 @@ pub fn load<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
     }
 }
 
+// TODO: Pass in an Arc<Mutex<FtpStream>>
 fn fetch_helper<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
     let mut ftp_stream = create_ftp_stream()
         .map_err(|err| CliError::InitError{ msg: err.to_string() })?;
@@ -79,7 +82,7 @@ fn read_nasdaq_file<T: std::str::FromStr + Downloadable>() -> Result<(Vec<T>, Da
     Ok((result, file_creation_date))
 }
 
-pub fn fetch_and_write_nasdaq_file<T: Downloadable>(ftp_stream: &mut FtpStream) -> Result<(), io::Error> {
+fn fetch_and_write_nasdaq_file<T: Downloadable>(ftp_stream: &mut FtpStream) -> Result<(), io::Error> {
     let bytes = fetch_remote_file::<T>(ftp_stream)
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
     write_remote_file::<T>(&bytes[..])
@@ -95,11 +98,11 @@ fn fetch_remote_file<T: Downloadable>(ftp_stream: &mut FtpStream) -> Result<Vec<
     Ok(bytes)
 }   
 
+// TODO: Pass in Logger
 fn write_remote_file<T: Downloadable>(bytes: &[u8]) -> Result<(), std::io::Error> {
     // Write to filesystem
     let mut buffer = File::create(T::filepath())?;
     buffer.write_all(&bytes)?;
-    println!("Saved to {:?}", T::filepath());
     Ok(())
 }
 
@@ -124,6 +127,19 @@ fn get_file_creation_date(line: &str) -> Date<FixedOffset> {
     }  
 }
 
-fn is_outdated(creation_date: Date<FixedOffset>) -> bool { 
-    creation_date != chrono::offset::Local::today()
+fn is_outdated(creation_date: Date<FixedOffset>) -> bool {
+    let today = chrono::offset::Local::today();
+    if today.weekday().number_from_monday() > 5 || is_market_holiday(today) {
+        false
+    } else {
+        creation_date != chrono::offset::Local::today()
+    }
+}
+
+fn is_market_holiday(date: Date<Local>) -> bool { 
+    if date.month() == 7 && date.day() == 3 && date.year() == 2020 {
+        true
+    } else {
+        false
+    }
 }

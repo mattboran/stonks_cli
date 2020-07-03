@@ -1,4 +1,4 @@
-use crate::api::client::{Result, Error};
+use crate::api::client::{Result, ApiError};
 use reqwest::Url;
 
 const BASE_URL: &str = "https://sandbox.tradier.com/v1";
@@ -19,7 +19,7 @@ impl Requestable for ApiEndpoint {
                 let symbols = symbols.join(",");
                 let url_str = format!("{}/{}", BASE_URL, "markets/quotes");
                 Url::parse_with_params(&url_str, &[("symbols", symbols)])
-                    .map_err(|_| Error::SetUpError)
+                    .map_err(|_| ApiError::SetUpError)
             }
         }
     }
