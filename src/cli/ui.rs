@@ -6,7 +6,7 @@ use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols,
-    widgets::{Widget, Block, Borders, Paragraph, Text},
+    widgets::{Widget, Block, Borders, List, Paragraph, Text},
     Frame
 };
 
@@ -20,7 +20,7 @@ pub fn initialize_terminal() -> Result<Terminal, io::Error> {
     Ok(Terminal::new(backend)?)
 }
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, app: &App) {
+pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -44,13 +44,32 @@ fn draw_header<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {
     f.render_widget(block, area);
 }
 
-fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {
+fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Percentage(50),
             Constraint::Percentage(50)
-        ]).split(area);
+        ].as_ref())
+        .split(area);
+    {
+        let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Length(8),
+                    Constraint::Min(0)
+                ].as_ref())
+                .split(chunks[0]);
+            let items = app.watchlist.list.iter().map(|i| {
+                let title = &i.symbol;
+                Text::raw(title)
+            });
+            let tasks = List::new(items)
+                .block(Block::default().borders(Borders::ALL).title("Watchlist"))
+                .highlight_style(Style::default().fg(Color::Yellow).modifier(Modifier::BOLD))
+                .highlight_symbol("> ");
+            f.render_stateful_widget(tasks, chunks[0], &mut app.watchlist.state);
+    }
     
 }
 

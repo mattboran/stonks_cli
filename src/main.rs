@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let mut app = app.lock().await;
         terminal.draw(|mut f| {
-            ui::draw(&mut f, &app);
+            ui::draw(&mut f, &mut app);
         })?;
 
         match events.next()? {

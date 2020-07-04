@@ -1,6 +1,7 @@
 use std::{io, str::FromStr};
 
 /// Symbol represents the symbol for a single NASDAQ security
+#[derive(Debug, Clone)]
 pub struct Symbol { 
     pub symbol: String,
     pub security_name: String,
@@ -37,6 +38,7 @@ impl FromStr for Symbol {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum MarketCategory { 
     GlobalSelectMarketSM,
     GlobalMarketSM,
@@ -56,6 +58,7 @@ impl FromStr for MarketCategory {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum FinancialStatus {
     Deficient, 
     Delinquent,

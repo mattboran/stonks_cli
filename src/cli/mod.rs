@@ -4,13 +4,14 @@ pub mod event;
 
 use tokio::sync::Mutex;
 
+use tui::widgets::ListState;
 pub use termion::event::Key;
 
 use std::fmt;
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::data::{Symbol, Option};
+use crate::data::{self, Symbol};
 
 #[derive(Debug)]
 pub enum CliError {
@@ -27,20 +28,30 @@ impl fmt::Display for CliError {
     }
 }
 
+pub struct Watchlist { 
+    pub list: Vec<Symbol>,
+    pub state: ListState
+}
 pub struct App { 
     pub title: String,
     pub symbols: Vec<Symbol>,
-    pub options: Vec<Option>,
+    pub options: Vec<data::Option>,
+    pub watchlist: Watchlist,
     pub log: Vec<String>,
     pub should_quit: bool,
 }
 
 impl App { 
     pub fn new() -> Self { 
+        let watchlist = Watchlist { 
+            list: vec![],
+            state: ListState::default(),
+        };
         App {
             title: format!("StonksCLI"),
             options: vec![],
             symbols: vec![],
+            watchlist,
             log: vec![],
             should_quit: false,
         }
@@ -62,13 +73,17 @@ pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> 
     {
         let mut app = app.lock().await;
         app.symbols = symbols;
-
-        let msg = format!("Loaded {} symbols.", app.symbols.len());
+        app.watchlist = Watchlist {
+            list: data::watchlist::get_watch_list(&app.symbols[..]), 
+            state: ListState::default()
+        };
+        
+        let msg = format!("Loaded {} symbols and watchlist.", app.symbols.len());
         app.log.push(msg);
     }
-
+    
     tokio::spawn(async move {
-        if let Ok(options) = loader::load::<Option>() {
+        if let Ok(options) = loader::load::<data::Option>() {
             let mut app = app.lock().await;
             app.options = options;
 
