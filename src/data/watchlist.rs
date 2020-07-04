@@ -1,6 +1,7 @@
 use crate::data::Symbol;
+// use crate::cli::Listable;
 
-static DEFAULT: &'static [&str] = &[
+const DEFAULT: [&str; 12] = [
     "SPY",
     "TSLA",
     "DIS",
@@ -18,6 +19,6 @@ static DEFAULT: &'static [&str] = &[
 pub fn get_watch_list(s: &[Symbol]) -> Vec<Symbol> { 
     s.to_vec()
         .into_iter()
-        .filter(|s| DEFAULT.into_iter().any(|x| *x == s.symbol))
+        .filter(|s| DEFAULT.iter().any(|x| *x == s.symbol))
         .collect()
 } 

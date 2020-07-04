@@ -40,18 +40,18 @@ pub fn load<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
     let data = read_nasdaq_file::<T>();
     if data.is_err() {
         create_dir_if_necessary()?;
-        return fetch_helper()
+        return refresh_file_from_remote()
     }
-    let (result, date) = data.unwrap();
+    let (result, date) = data?;
     if is_outdated(date) {
-        return fetch_helper()  
+        refresh_file_from_remote()  
     } else {
         Ok(result)
     }
 }
 
 // TODO: Pass in an Arc<Mutex<FtpStream>>
-fn fetch_helper<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
+fn refresh_file_from_remote<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
     let mut ftp_stream = create_ftp_stream()
         .map_err(|err| CliError::InitError{ msg: err.to_string() })?;
     fetch_and_write_nasdaq_file::<T>(&mut ftp_stream)?;

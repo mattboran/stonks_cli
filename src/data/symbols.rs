@@ -1,4 +1,5 @@
-use std::{io, str::FromStr};
+use std::io;
+use std::str::FromStr;
 
 /// Symbol represents the symbol for a single NASDAQ security
 #[derive(Debug, Clone)]

@@ -29,7 +29,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::Input(k) => match k {
                 Key::Char(c) => {
                     app.on_key(c);
-                }
+                },
+                Key::Up => { 
+                    app.on_up()
+                },
+                Key::Down => {
+                    app.on_down()
+                },
                 _ => {}
             },
             Event::Tick => {

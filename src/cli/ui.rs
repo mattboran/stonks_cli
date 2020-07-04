@@ -6,13 +6,84 @@ use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols,
-    widgets::{Widget, Block, Borders, List, Paragraph, Text},
+    widgets::{Widget, Block, Borders, List, Paragraph, ListState, Text},
     Frame
 };
 
 use crate::cli::App;
+use crate::data::{Symbol, Option};
 
 pub type Terminal = tui::Terminal<TermionBackend<termion::raw::RawTerminal<io::Stdout>>>;
+
+pub trait Listable {
+    fn short_name(&self) -> String;
+}
+
+impl Listable for Symbol {
+    fn short_name(&self) -> String { self.symbol.clone() }
+}
+
+impl Listable for Option {
+    fn short_name(&self) -> String { self.underlying_symbol.clone() }
+}
+
+#[derive(Clone)]
+pub struct StatefulList<T: Listable> { 
+    pub list: Vec<T>,
+    pub state: ListState
+}
+
+impl<T: Listable> Default for StatefulList<T> {
+    fn default() -> Self { 
+        StatefulList {
+            list: vec![],
+            state: ListState::default()
+        }
+    }
+}
+
+impl<T: Listable> StatefulList<T> {
+    pub fn with_list(list: Vec<T>) -> Self {
+        StatefulList {
+            state: ListState::default(),
+            list,
+        }
+    }
+}
+
+impl<T: Listable> StatefulList<T> { 
+    pub fn next(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i >= self.list.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+
+    pub fn previous(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.list.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+}
+
+pub enum ViewContext {
+    Watchlist
+}
 
 pub fn initialize_terminal() -> Result<Terminal, io::Error> {
     let stdout = io::stdout().into_raw_mode()?;
@@ -56,12 +127,12 @@ fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
         let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Length(8),
+                    Constraint::Length(12),
                     Constraint::Min(0)
                 ].as_ref())
                 .split(chunks[0]);
             let items = app.watchlist.list.iter().map(|i| {
-                let title = &i.symbol;
+                let title = i.short_name();
                 Text::raw(title)
             });
             let tasks = List::new(items)
