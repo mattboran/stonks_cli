@@ -2,7 +2,13 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct QuotesDataModel { 
-    pub quotes: Quotes
+    quotes: Quotes
+}
+
+impl QuotesDataModel {
+    pub fn quotes(&self) -> &Vec<Quote> {
+        &self.quotes.quote
+    }
 }
 
 #[derive(Debug, Deserialize)]

@@ -13,7 +13,7 @@ pub enum ApiError {
     UnknownError
 }
 
-pub async fn get_stock_quote(symbols: Vec<String>) -> Result<Quotes> {
+pub async fn get_stock_quotes(symbols: Vec<String>) -> Result<Quotes> {
     let client = get_client()?;
     let url = ApiEndpoint::Quotes { symbols }.url()?;
 

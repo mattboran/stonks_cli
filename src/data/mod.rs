@@ -4,5 +4,6 @@ mod options;
 pub mod watchlist;
 
 pub type Quotes = quote::QuotesDataModel;
+pub type Quote = quote::Quote;
 pub type Symbol = symbols::Symbol;
 pub type Option = options::Option;
