@@ -119,8 +119,8 @@ fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50)
+            Constraint::Length(50),
+            Constraint::Min(0)
         ].as_ref())
         .split(area);
     {
@@ -134,6 +134,7 @@ fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
             draw_watchlist(f, app, chunks[0]);
             draw_quote_section(f, app, chunks[1]);
     }
+    draw_graph_section(f, app, chunks[1]);
 }
 
 fn draw_watchlist<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
@@ -160,25 +161,28 @@ fn draw_quote_section<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
 
 fn quote_section_text(quote: Option<&Quote>) -> Vec<Text> { 
     let mut text = vec![];
-    text.push(Text::raw(if let Some(q) = quote { q.description.to_string() } else { "...".to_string() }));
+    text.push(Text::styled(
+        if let Some(q) = quote { q.description.to_string() } else { "...".to_string() },
+        Style::default().modifier(Modifier::BOLD)
+    ));
     text.push(Text::raw("\n\nLast Price: $"));
-    text.push(Text::raw(if let Some(q) = quote { q.last.to_string() } else { "...".to_string() }));
-    text.push(Text::raw("\nBid:"));
+    text.push(Text::raw(if let Some(q) = quote { format!("{:.2}", q.last) } else { "...".to_string() }));
+    text.push(Text::raw("\nVolume: "));
+    text.push(Text::raw(if let Some(q) = quote { q.volume.to_string() } else { "...".to_string() }));
+    text.push(Text::raw("\n\nBid:"));
     text.push(Text::raw(format!(" ${} ({})", 
-        if let Some(q) = quote { q.bid.to_string() } else { "...".to_string() },
+        if let Some(q) = quote { format!("{:.2}", q.bid) } else { "...".to_string() },
         if let Some(q) = quote { q.bid_size.to_string() } else { "...".to_string() }))
     );
     text.push(Text::raw("\nAsk:"));
     text.push(Text::raw(format!(" ${} ({})", 
-        if let Some(q) = quote { q.ask.to_string() } else { "...".to_string() },
+        if let Some(q) = quote { format!("{:.2}", q.ask) } else { "...".to_string() },
         if let Some(q) = quote { q.ask_size.to_string() } else { "...".to_string() }))
     );
-    text.push(Text::raw("\nVolume:"));
-    text.push(Text::raw(if let Some(q) = quote { q.volume.to_string() } else { "...".to_string() }));
 
-    text.push(Text::raw("\nChange "));
+    text.push(Text::raw("\n\nChange "));
     text.push(Text::styled(format!("${} : {}%", 
-        if let Some(q) = quote { q.change_points.to_string() } else { "...".to_string() },
+        if let Some(q) = quote { format!("{:.2}", q.change_points) } else { "...".to_string() },
         if let Some(q) = quote { q.change_percentage.to_string() } else { "...".to_string() }),
         if let Some(q) = quote { 
             if q.change_points > 0.0 { 
@@ -190,7 +194,34 @@ fn quote_section_text(quote: Option<&Quote>) -> Vec<Text> {
             }
         } else { Style::default() }
     ));
+    text.push(Text::raw("\nOpen: "));
+    text.push(Text::styled(
+        quote.map_or("...".to_string(), |q| {
+            q.open.map_or("nil".to_string(), |o| format!("{:.2}", o))
+        }), quote.map_or(Style::default(), |q| {
+            q.open.map_or(Style::default().fg(Color::Magenta), |_| Style::default())
+        })
+    ));
+    text.push(Text::raw("\nClose: "));
+    text.push(Text::styled(
+        quote.map_or("...".to_string(), |q| {
+            q.close.map_or("nil".to_string(), |c| format!("{:.2}", c))
+        }), quote.map_or(Style::default(), |q| {
+            q.close.map_or(Style::default().fg(Color::Magenta), |_| Style::default())
+        })
+    ));
+    text.push(Text::raw("\n\n52 Week High: $"));
+    text.push(Text::raw(if let Some(q) = quote { format!("{:.2}", q.week_52_high) } else { "...".to_string() }));
+    text.push(Text::raw("\n52 Week Low: $"));
+    text.push(Text::raw(if let Some(q) = quote { format!("{:.2}", q.week_52_low) } else { "...".to_string() }));
     text
+}
+
+fn draw_graph_section<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Graph");
+    f.render_widget(block, area);
 }
 
 fn draw_log_section<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {
