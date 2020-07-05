@@ -1,13 +1,16 @@
 mod api;
 mod cli;
 mod data;
+mod util;
 
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
+use chrono::{DateTime, Datelike, Timelike, TimeZone, Utc};
 
 use cli::{
-    App, 
+    App,
+    CliError, 
     Key,
     event::{Event, Events},
     ui
@@ -15,6 +18,15 @@ use cli::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    let start_date = Utc.ymd(2020, 07, 02);
+    let start_date = start_date.and_hms(9, 30, 0);
+    let end_date = Utc.ymd(2020, 07, 02);
+    let end_date = end_date.and_hms(16, 0, 0);
+    let timeseries = api::client::get_time_series_data("SPY".to_string(), start_date, end_date, 15).await?;
+
+    print!("{:?}", timeseries);
+    return Ok(());
     let app = Arc::new(Mutex::new(App::new()));
     let mut terminal = cli::initialize(Arc::clone(&app)).await?;
 

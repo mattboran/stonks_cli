@@ -2,10 +2,12 @@ use std::{io, io::Write};
 use std::{fs, fs::File};
 use std::path::{Path, PathBuf};
 
+use chrono::{Date, Datelike, FixedOffset, TimeZone, Local};
+use ftp::FtpStream;
+
+use crate::util;
 use crate::cli::CliError;
 use crate::data::{self, Symbol};
-use chrono::{Date, Datelike, FixedOffset, Local, TimeZone};
-use ftp::FtpStream;
 
 const SYMBOLS_DIRECTORY: &str = "SymbolDirectory";
 const NASDAQ_SYMBOLS_FILENAME: &str = "nasdaqlisted.txt";
@@ -16,10 +18,6 @@ fn relative_filepath(file: &str) -> PathBuf {
     let relative_directory = format!("./{}", SYMBOLS_DIRECTORY);
     let path = Path::new(&relative_directory);
     path.join(file)
-}
-
-fn est() -> FixedOffset {
-    chrono::FixedOffset::west(5 * 3600)
 }
 
 impl From<io::Error> for CliError {
@@ -57,7 +55,6 @@ pub fn load_symbols() -> Result<Vec<Symbol>, CliError> {
     }
     nasdaq_result.append(&mut other_result);
     Ok(nasdaq_result)
-
 }
 
 pub fn load_options() -> Result<Vec<data::Option>, CliError> {
@@ -139,13 +136,13 @@ fn get_file_creation_date(line: &str) -> Date<FixedOffset> {
     // That means the file won't be refreshed. Is this bad?
     if let None = end_index {
         let local_date = chrono::offset::Local::today().naive_local();
-        est().from_local_date(&local_date).unwrap()
+        util::est().from_local_date(&local_date).unwrap()
     } else {
         let segment = line[start_index..end_index.unwrap()].to_string();
         let month_component = &segment[..2];
         let day_component = &segment[2..4];
         let year_component = &segment[4..8];
-        est().ymd(year_component.parse().unwrap(),
+        util::est().ymd(year_component.parse().unwrap(),
                   month_component.parse().unwrap(), 
                   day_component.parse().unwrap())
     }  
