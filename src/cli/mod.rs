@@ -93,7 +93,7 @@ impl App {
 }
 
 pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> {
-    let symbols = loader::load::<Symbol>()?;
+    let symbols = loader::load_symbols()?;
     {
         let mut app = app.lock().await;
         app.symbols = symbols;
@@ -120,7 +120,7 @@ pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> 
 }
 
 async fn background_fetch_options(app: Arc<Mutex<App>>) {
-    if let Ok(options) = loader::load::<data::Option>() {
+    if let Ok(options) = loader::load_options() {
         let mut app = app.lock().await;
         app.options = options;
 

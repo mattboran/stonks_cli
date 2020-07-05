@@ -3,32 +3,23 @@ use std::{fs, fs::File};
 use std::path::{Path, PathBuf};
 
 use crate::cli::CliError;
-use crate::data::{Symbol, Option};
+use crate::data::{self, Symbol};
 use chrono::{Date, Datelike, FixedOffset, Local, TimeZone};
 use ftp::FtpStream;
 
 const SYMBOLS_DIRECTORY: &str = "SymbolDirectory";
-const SYMBOLS_FILENAME: &str = "nasdaqlisted.txt";
-// const SYMBOLS_FILENAME: &str = "otherlisted.txt";
+const NASDAQ_SYMBOLS_FILENAME: &str = "nasdaqlisted.txt";
+const OTHER_SYMBOLS_FILENAME: &str = "otherlisted.txt";
 const OPTIONS_FILENAME: &str = "options.txt";
+
+fn relative_filepath(file: &str) -> PathBuf { 
+    let relative_directory = format!("./{}", SYMBOLS_DIRECTORY);
+    let path = Path::new(&relative_directory);
+    path.join(file)
+}
 
 fn est() -> FixedOffset {
     chrono::FixedOffset::west(5 * 3600)
-}
-
-pub trait Downloadable { 
-    fn filename() -> &'static str;
-    fn filepath() -> PathBuf;
-}
-
-impl Downloadable for Symbol { 
-    fn filename() -> &'static str { SYMBOLS_FILENAME }
-    fn filepath() -> PathBuf { Path::new(SYMBOLS_DIRECTORY).join(SYMBOLS_FILENAME) }   
-}
-
-impl Downloadable for Option { 
-    fn filename() -> &'static str { OPTIONS_FILENAME }
-    fn filepath() -> PathBuf { Path::new(SYMBOLS_DIRECTORY).join(OPTIONS_FILENAME) }   
 }
 
 impl From<io::Error> for CliError {
@@ -37,27 +28,59 @@ impl From<io::Error> for CliError {
     }
 }
 
-pub fn load<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
-    let data = read_nasdaq_file::<T>();
+pub fn load_symbols() -> Result<Vec<Symbol>, CliError> {
+    let nasdaq_data = read_nasdaq_file(NASDAQ_SYMBOLS_FILENAME);
+    let other_data = read_nasdaq_file(OTHER_SYMBOLS_FILENAME);
+    let mut nasdaq_result: Vec<Symbol>;
+    let mut other_result: Vec<Symbol>;
+    
+    if nasdaq_data.is_err() {
+        create_dir_if_necessary()?;
+        nasdaq_result = refresh_file_from_remote(NASDAQ_SYMBOLS_FILENAME)?;
+    }
+    let (_nasdaq_result, nasdaq_date) = nasdaq_data?;
+    if is_outdated(nasdaq_date) {
+        nasdaq_result = refresh_file_from_remote(NASDAQ_SYMBOLS_FILENAME)?;
+    } else { 
+        nasdaq_result = _nasdaq_result;
+    }
+
+    if other_data.is_err() {
+        create_dir_if_necessary()?;
+        other_result = refresh_file_from_remote(OTHER_SYMBOLS_FILENAME)?;
+    }
+    let (_other_result, other_date) = other_data?;
+    if is_outdated(other_date) {
+        other_result = refresh_file_from_remote(OTHER_SYMBOLS_FILENAME)?;
+    } else {
+        other_result = _other_result;
+    }
+    nasdaq_result.append(&mut other_result);
+    Ok(nasdaq_result)
+
+}
+
+pub fn load_options() -> Result<Vec<data::Option>, CliError> {
+    let data = read_nasdaq_file(OPTIONS_FILENAME);
     if data.is_err() {
         create_dir_if_necessary()?;
-        return refresh_file_from_remote()
+        return refresh_file_from_remote(OPTIONS_FILENAME)
     }
     let (result, date) = data?;
     if is_outdated(date) {
-        refresh_file_from_remote()  
+        refresh_file_from_remote(OPTIONS_FILENAME)  
     } else {
         Ok(result)
     }
 }
 
 // TODO: Pass in an Arc<Mutex<FtpStream>>
-fn refresh_file_from_remote<T: Downloadable + std::str::FromStr>() -> Result<Vec<T>, CliError> {
+fn refresh_file_from_remote<T: std::str::FromStr>(file: &str) -> Result<Vec<T>, CliError> {
     let mut ftp_stream = create_ftp_stream()
         .map_err(|err| CliError::InitError{ msg: err.to_string() })?;
-    fetch_and_write_nasdaq_file::<T>(&mut ftp_stream)?;
+    fetch_and_write_nasdaq_file::<T>(&mut ftp_stream, file)?;
     ftp_stream.quit().unwrap();
-    let (result, _) = read_nasdaq_file::<T>()?;
+    let (result, _) = read_nasdaq_file::<T>(file)?;
     Ok(result)
 }
 
@@ -68,8 +91,8 @@ fn create_ftp_stream() -> Result<ftp::FtpStream, ftp::FtpError> {
     Ok(ftp_stream)
 }
 
-fn read_nasdaq_file<T: std::str::FromStr + Downloadable>() -> Result<(Vec<T>, Date<FixedOffset>), io::Error> {
-    let contents = fs::read_to_string(T::filepath())?;
+fn read_nasdaq_file<T: std::str::FromStr>(file: &str) -> Result<(Vec<T>, Date<FixedOffset>), io::Error> {
+    let contents = fs::read_to_string(relative_filepath(file))?;
     let lines: Vec<&str> = contents.split("\n").collect();
     // Remove the first line (header) and last line (empty newline)
     let mut lines = lines[1..lines.len() - 1].to_vec();
@@ -83,26 +106,26 @@ fn read_nasdaq_file<T: std::str::FromStr + Downloadable>() -> Result<(Vec<T>, Da
     Ok((result, file_creation_date))
 }
 
-fn fetch_and_write_nasdaq_file<T: Downloadable>(ftp_stream: &mut FtpStream) -> Result<(), io::Error> {
-    let bytes = fetch_remote_file::<T>(ftp_stream)
+fn fetch_and_write_nasdaq_file<T>(ftp_stream: &mut FtpStream, file: &str) -> Result<(), io::Error> {
+    let bytes = fetch_remote_file(ftp_stream, file)
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
-    write_remote_file::<T>(&bytes[..])
+    write_remote_file(&bytes[..], file)
 }
 
 fn create_dir_if_necessary() -> Result<(), io::Error> {
     fs::create_dir_all(SYMBOLS_DIRECTORY)
 }
 
-fn fetch_remote_file<T: Downloadable>(ftp_stream: &mut FtpStream) -> Result<Vec<u8>, ftp::FtpError> {
-    let remote_file = ftp_stream.simple_retr(T::filename())?;
+fn fetch_remote_file(ftp_stream: &mut FtpStream, file: &str) -> Result<Vec<u8>, ftp::FtpError> {
+    let remote_file = ftp_stream.simple_retr(file)?;
     let bytes = remote_file.into_inner();
     Ok(bytes)
 }   
 
 // TODO: Pass in Logger
-fn write_remote_file<T: Downloadable>(bytes: &[u8]) -> Result<(), std::io::Error> {
+fn write_remote_file(bytes: &[u8], file: &str) -> Result<(), std::io::Error> {
     // Write to filesystem
-    let mut buffer = File::create(T::filepath())?;
+    let mut buffer = File::create(relative_filepath(file))?;
     buffer.write_all(&bytes)?;
     Ok(())
 }
