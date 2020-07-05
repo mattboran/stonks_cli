@@ -43,7 +43,8 @@ impl FromStr for Symbol {
 pub enum MarketCategory { 
     GlobalSelectMarketSM,
     GlobalMarketSM,
-    CapitalMarket
+    CapitalMarket,
+    Unknown
 }
 
 impl FromStr for MarketCategory { 
@@ -54,7 +55,7 @@ impl FromStr for MarketCategory {
             "Q" => Ok(Self::GlobalSelectMarketSM),
             "G" => Ok(Self::GlobalMarketSM),
             "S" => Ok(Self::CapitalMarket),
-            _ => Err(io::Error::new(io::ErrorKind::Other, "Error parsing market category."))
+            _ => Ok(Self::Unknown)
         }
     }
 }
@@ -68,7 +69,8 @@ pub enum FinancialStatus {
     DeficientAndBankrupt,
     DeficientAndDelinquent,
     DelinquentAndBankrupt,
-    DeficientDelinquentAndBankrupt
+    DeficientDelinquentAndBankrupt,
+    Unknown
 }
 
 impl FromStr for FinancialStatus { 
@@ -84,7 +86,7 @@ impl FromStr for FinancialStatus {
             "H" => Ok(Self::DeficientAndDelinquent),
             "J" => Ok(Self::DelinquentAndBankrupt),
             "K" => Ok(Self::DeficientDelinquentAndBankrupt),
-            _ => Err(io::Error::new(io::ErrorKind::Other, "Error parsing financial status.")),
+            _ => Ok(Self::Unknown)
             
         }
     }

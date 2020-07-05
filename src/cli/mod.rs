@@ -2,15 +2,13 @@ mod loader;
 pub mod ui;
 pub mod event;
 
-use tokio::sync::{mpsc, Mutex};
-use tokio::prelude::*;
-
-pub use termion::event::Key;
-
 use std::fmt;
 use std::error::Error;
 use std::sync::Arc;
 use std::collections::HashMap;
+
+use tokio::sync::Mutex;
+pub use termion::event::Key;
 
 use crate::data::{self, Symbol, Quote};
 use crate::api::client;
@@ -35,11 +33,12 @@ pub struct App {
     pub title: String,
     pub symbols: Vec<Symbol>,
     pub options: Vec<data::Option>,
-    pub active_context: ViewContext,
     pub watchlist: StatefulList<Symbol>,
-    pub quote_cache: HashMap<String, Quote>,
     pub log: Vec<String>,
     pub should_quit: bool,
+    quote_cache: HashMap<String, Quote>,
+    active_context: ViewContext,
+    selected_symbol: Option<Symbol>
 }
 
 impl App { 
@@ -53,6 +52,7 @@ impl App {
             quote_cache: HashMap::new(),
             log: vec![],
             should_quit: false,
+            selected_symbol: None
         }
     }
 
@@ -76,6 +76,19 @@ impl App {
 
     pub fn on_tick(&mut self) {
 
+    }
+
+    pub fn get_quote(&self, symbol: &Symbol) -> Option<&Quote> { 
+        self.quote_cache.get(&symbol.symbol)
+    }
+
+    pub fn selected_symbol(&self) -> &Symbol { 
+        match self.active_context {
+            ViewContext::Watchlist => {
+                let index = self.watchlist.state.selected().unwrap();
+                return &self.watchlist.list[index];
+            }
+        }
     }
 }
 
@@ -120,7 +133,6 @@ async fn background_fetch_watchlist_quotes(app: Arc<Mutex<App>>) {
     let mut lock = app.lock().await;
     let symbols = &lock.watchlist.list;
     let tickers = symbols.into_iter().map(|s| s.short_name()).collect();
-    // let tickers = vec!["spx".parse().unwrap(), "qqq".parse().unwrap(), "tqqq".parse().unwrap()];
     if let Ok(quotes) = client::get_stock_quotes(tickers).await {
         for quote in quotes.quotes() {
             lock.quote_cache.insert(quote.symbol.clone(), quote.clone());

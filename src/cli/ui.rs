@@ -11,7 +11,7 @@ use tui::{
 };
 
 use crate::cli::App;
-use crate::data::{Symbol, Option};
+use crate::data::{self, Symbol, Quote};
 
 pub type Terminal = tui::Terminal<TermionBackend<termion::raw::RawTerminal<io::Stdout>>>;
 
@@ -23,7 +23,7 @@ impl Listable for Symbol {
     fn short_name(&self) -> String { self.symbol.clone() }
 }
 
-impl Listable for Option {
+impl Listable for data::Option {
     fn short_name(&self) -> String { self.underlying_symbol.clone() }
 }
 
@@ -131,17 +131,66 @@ fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                     Constraint::Min(0)
                 ].as_ref())
                 .split(chunks[0]);
-            let items = app.watchlist.list.iter().map(|i| {
-                let title = i.short_name();
-                Text::raw(title)
-            });
-            let tasks = List::new(items)
-                .block(Block::default().borders(Borders::ALL).title("Watchlist"))
-                .highlight_style(Style::default().fg(Color::Yellow).modifier(Modifier::BOLD))
-                .highlight_symbol("> ");
-            f.render_stateful_widget(tasks, chunks[0], &mut app.watchlist.state);
+            draw_watchlist(f, app, chunks[0]);
+            draw_quote_section(f, app, chunks[1]);
     }
-    
+}
+
+fn draw_watchlist<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+    let items = app.watchlist.list.iter().map(|i| {
+        let title = i.short_name();
+        Text::raw(title)
+    });
+    let tasks = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Watchlist"))
+        .highlight_style(Style::default().fg(Color::Yellow).modifier(Modifier::BOLD))
+        .highlight_symbol("> ");
+    f.render_stateful_widget(tasks, area, &mut app.watchlist.state);
+}
+
+fn draw_quote_section<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+    let symbol = app.selected_symbol();
+    let text = quote_section_text(app.get_quote(symbol));
+    let block: Block = Block::default()
+        .borders(Borders::ALL)
+        .title("Quote");
+    let paragraph = Paragraph::new(text.iter()).block(block).wrap(false);
+    f.render_widget(paragraph, area);
+}
+
+fn quote_section_text(quote: Option<&Quote>) -> Vec<Text> { 
+    let mut text = vec![];
+    text.push(Text::raw(if let Some(q) = quote { q.description.to_string() } else { "...".to_string() }));
+    text.push(Text::raw("\n\nLast Price: $"));
+    text.push(Text::raw(if let Some(q) = quote { q.last.to_string() } else { "...".to_string() }));
+    text.push(Text::raw("\nBid:"));
+    text.push(Text::raw(format!(" ${} ({})", 
+        if let Some(q) = quote { q.bid.to_string() } else { "...".to_string() },
+        if let Some(q) = quote { q.bid_size.to_string() } else { "...".to_string() }))
+    );
+    text.push(Text::raw("\nAsk:"));
+    text.push(Text::raw(format!(" ${} ({})", 
+        if let Some(q) = quote { q.ask.to_string() } else { "...".to_string() },
+        if let Some(q) = quote { q.ask_size.to_string() } else { "...".to_string() }))
+    );
+    text.push(Text::raw("\nVolume:"));
+    text.push(Text::raw(if let Some(q) = quote { q.volume.to_string() } else { "...".to_string() }));
+
+    text.push(Text::raw("\nChange "));
+    text.push(Text::styled(format!("${} : {}%", 
+        if let Some(q) = quote { q.change_points.to_string() } else { "...".to_string() },
+        if let Some(q) = quote { q.change_percentage.to_string() } else { "...".to_string() }),
+        if let Some(q) = quote { 
+            if q.change_points > 0.0 { 
+                Style::default().fg(Color::Green)
+            } else if q.change_points == 0.0 {
+                Style::default()
+            } else {
+                Style::default().fg(Color::Red)
+            }
+        } else { Style::default() }
+    ));
+    text
 }
 
 fn draw_log_section<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {

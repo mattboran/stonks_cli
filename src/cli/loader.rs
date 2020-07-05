@@ -9,6 +9,7 @@ use ftp::FtpStream;
 
 const SYMBOLS_DIRECTORY: &str = "SymbolDirectory";
 const SYMBOLS_FILENAME: &str = "nasdaqlisted.txt";
+// const SYMBOLS_FILENAME: &str = "otherlisted.txt";
 const OPTIONS_FILENAME: &str = "options.txt";
 
 fn est() -> FixedOffset {
