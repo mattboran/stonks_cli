@@ -2,7 +2,8 @@ mod loader;
 pub mod ui;
 pub mod event;
 
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
+use tokio::prelude::*;
 
 pub use termion::event::Key;
 
@@ -36,7 +37,7 @@ pub struct App {
     pub options: Vec<data::Option>,
     pub active_context: ViewContext,
     pub watchlist: StatefulList<Symbol>,
-    pub quote_cache: Arc<Mutex<HashMap<String, Quote>>>,
+    pub quote_cache: HashMap<String, Quote>,
     pub log: Vec<String>,
     pub should_quit: bool,
 }
@@ -49,7 +50,7 @@ impl App {
             symbols: vec![],
             active_context: ViewContext::Watchlist,
             watchlist: StatefulList::default(),
-            quote_cache: Arc::new(Mutex::new(HashMap::new())),
+            quote_cache: HashMap::new(),
             log: vec![],
             should_quit: false,
         }
@@ -92,46 +93,38 @@ pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> 
         app.log.push(msg);
     }
 
-    background_fetch_options(Arc::clone(&app));
-    background_fetch_watchlist_quotes(Arc::clone(&app));
+    // Background tasks
+    tokio::spawn(async move {
+        background_fetch_options(Arc::clone(&app)).await;
+        background_fetch_watchlist_quotes(Arc::clone(&app)).await;
+    });
 
     let mut terminal = ui::initialize_terminal()
-    .map_err(|_| CliError::InitError { msg: "Failed to initialize terminal." .to_string() })?;
+        .map_err(|_| CliError::InitError { msg: "Failed to initialize terminal." .to_string() })?;
     terminal.hide_cursor()?;
     terminal.clear()?;
     Ok(terminal)
 }
 
-fn background_fetch_options(app: Arc<Mutex<App>>) {
-    tokio::spawn(async move {
-        if let Ok(options) = loader::load::<data::Option>() {
-            let mut app = app.lock().await;
-            app.options = options;
-    
-            let msg = format!("Loaded {} options.", app.options.len());
-            app.log.push(msg);
-        }
-    });
+async fn background_fetch_options(app: Arc<Mutex<App>>) {
+    if let Ok(options) = loader::load::<data::Option>() {
+        let mut app = app.lock().await;
+        app.options = options;
+
+        let msg = format!("Loaded {} options.", app.options.len());
+        app.log.push(msg);
+    }
 }
 
-fn background_fetch_watchlist_quotes(app: Arc<Mutex<App>>) { 
-    tokio::spawn(async move {
-        let mut lock = app.lock().await;
-        let symbols = &lock.watchlist.list;
-        let tickers = symbols.into_iter().map(|s| s.short_name()).collect();
-        lock.log.push("Downloading watchlist quotes".to_string());
-        if let Ok(quotes) = client::get_stock_quotes(tickers).await {
-            let mut lock = app.lock().await;
-            let symbols = &lock.watchlist.list;
-            let quotes = quotes.quotes();
-            // for i in 0..quotes.len() {
-                // let symbol = symbols[i].symbol;
-                // let quote = quotes[i];
-                // let cache = lock.quote_cache.lock().await;
-                // cache.insert(symbol, quote);
-            // }
-            lock.log.push("Downloaded watchlist quotes".to_string());
-            // ???
+async fn background_fetch_watchlist_quotes(app: Arc<Mutex<App>>) { 
+    let mut lock = app.lock().await;
+    let symbols = &lock.watchlist.list;
+    let tickers = symbols.into_iter().map(|s| s.short_name()).collect();
+    // let tickers = vec!["spx".parse().unwrap(), "qqq".parse().unwrap(), "tqqq".parse().unwrap()];
+    if let Ok(quotes) = client::get_stock_quotes(tickers).await {
+        for quote in quotes.quotes() {
+            lock.quote_cache.insert(quote.symbol.clone(), quote.clone());
         }
-    });
+        lock.log.push("Downloaded watchlist quotes".to_string());
+    }
 }

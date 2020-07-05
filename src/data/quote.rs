@@ -16,7 +16,7 @@ pub struct Quotes {
     pub quote: Vec<Quote>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Quote { 
     pub ask: f32,
     pub bid: f32,

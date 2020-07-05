@@ -2,6 +2,7 @@ use std::io;
 use std::str::FromStr;
 use chrono::{Date, FixedOffset, TimeZone};
 
+#[derive(Debug, Clone, Copy)]
 pub enum OptionType { 
     Call,
     Put
@@ -10,6 +11,7 @@ pub enum OptionType {
 type Dollars = f32;
 
 // Root Symbol|Options Closing Type|Options Type|Expiration Date|Explicit Strike Price|Underlying Symbol|Underlying Issue Name|Pending
+#[derive(Debug, Clone)]
 pub struct Option { 
     pub closing_type: String,
     pub options_type: OptionType,
