@@ -127,7 +127,7 @@ fn draw_main_area<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
         let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Length(12),
+                    Constraint::Length(10),
                     Constraint::Min(0)
                 ].as_ref())
                 .split(chunks[0]);

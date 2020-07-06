@@ -1,17 +1,20 @@
 mod loader;
+mod cache;
 pub mod ui;
 pub mod event;
 
 use std::fmt;
 use std::error::Error;
 use std::sync::Arc;
-use std::collections::HashMap;
 
 use tokio::sync::Mutex;
+use chrono::{Datelike, Date, Timelike, DateTime, TimeZone};
 pub use termion::event::Key;
 
 use crate::data::{self, Symbol, Quote};
 use crate::api::client;
+use crate::util;
+use cache::{QuoteCache, GraphCache};
 use ui::{StatefulList, ViewContext, Listable};
 
 #[derive(Debug)]
@@ -36,9 +39,9 @@ pub struct App {
     pub watchlist: StatefulList<Symbol>,
     pub log: Vec<String>,
     pub should_quit: bool,
-    quote_cache: HashMap<String, Quote>,
+    quote_cache: QuoteCache,
+    graph_cache: GraphCache,
     active_context: ViewContext,
-    selected_symbol: Option<Symbol>
 }
 
 impl App { 
@@ -49,10 +52,10 @@ impl App {
             symbols: vec![],
             active_context: ViewContext::Watchlist,
             watchlist: StatefulList::default(),
-            quote_cache: HashMap::new(),
+            quote_cache: QuoteCache::new(),
+            graph_cache: GraphCache::new(),
             log: vec![],
             should_quit: false,
-            selected_symbol: None
         }
     }
 
@@ -110,6 +113,7 @@ pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> 
     tokio::spawn(async move {
         background_fetch_options(Arc::clone(&app)).await;
         background_fetch_watchlist_quotes(Arc::clone(&app)).await;
+        // background_fetch_graph(Arc::clone(&app)).await;
     });
 
     let mut terminal = ui::initialize_terminal()
@@ -138,5 +142,27 @@ async fn background_fetch_watchlist_quotes(app: Arc<Mutex<App>>) {
             lock.quote_cache.insert(quote.symbol.clone(), quote.clone());
         }
         lock.log.push("Downloaded watchlist quotes".to_string());
+    }
+}
+
+async fn background_fetch_graph(app: Arc<Mutex<App>>) {
+    let mut lock = app.lock().await;
+    let symbol = lock.watchlist.list.first().unwrap();
+    let symbol = symbol.symbol.clone();
+    let start_day = util::last_market_open_day();
+    let start_date = start_day.and_hms(9,30, 0);
+    let end_day = util::last_market_open_day();
+    let end_date = end_day.and_hms(16, 0, 1);
+    let result = client::get_time_series_data(
+        symbol.to_string(), start_date, end_date, 15
+    ).await;
+    match result {
+        Ok(series) => {
+            lock.graph_cache.insert(symbol, series); 
+            lock.log.push("Got initial timeseries data".to_string());
+        },
+        Err(_) => {
+            lock.log.push("Failed to get initial timeseries data".to_string());
+        }
     }
 }

@@ -2,7 +2,7 @@ use std::{io, io::Write};
 use std::{fs, fs::File};
 use std::path::{Path, PathBuf};
 
-use chrono::{Date, Datelike, FixedOffset, TimeZone, Local};
+use chrono::{Date, Datelike, FixedOffset, TimeZone};
 use ftp::FtpStream;
 
 use crate::util;
@@ -14,45 +14,37 @@ const NASDAQ_SYMBOLS_FILENAME: &str = "nasdaqlisted.txt";
 const OTHER_SYMBOLS_FILENAME: &str = "otherlisted.txt";
 const OPTIONS_FILENAME: &str = "options.txt";
 
-fn relative_filepath(file: &str) -> PathBuf { 
-    let relative_directory = format!("./{}", SYMBOLS_DIRECTORY);
-    let path = Path::new(&relative_directory);
-    path.join(file)
-}
-
-impl From<io::Error> for CliError {
-    fn from(err: io::Error) -> Self {
-        CliError::InitError { msg: err.to_string() }
-    }
-}
-
 pub fn load_symbols() -> Result<Vec<Symbol>, CliError> {
-    let nasdaq_data = read_nasdaq_file(NASDAQ_SYMBOLS_FILENAME);
-    let other_data = read_nasdaq_file(OTHER_SYMBOLS_FILENAME);
+    type Res = Result<(Vec<Symbol>, chrono::Date<FixedOffset>), io::Error>;
+    let nasdaq_data: Res = read_nasdaq_file(NASDAQ_SYMBOLS_FILENAME);
+    let other_data: Res = read_nasdaq_file(OTHER_SYMBOLS_FILENAME);
     let mut nasdaq_result: Vec<Symbol>;
     let mut other_result: Vec<Symbol>;
     
     if nasdaq_data.is_err() {
         create_dir_if_necessary()?;
         nasdaq_result = refresh_file_from_remote(NASDAQ_SYMBOLS_FILENAME)?;
-    }
-    let (_nasdaq_result, nasdaq_date) = nasdaq_data?;
-    if is_outdated(nasdaq_date) {
-        nasdaq_result = refresh_file_from_remote(NASDAQ_SYMBOLS_FILENAME)?;
-    } else { 
-        nasdaq_result = _nasdaq_result;
+    } else {
+        let (_nasdaq_result, nasdaq_date) = nasdaq_data.unwrap();
+        if is_outdated(nasdaq_date) {
+            nasdaq_result = refresh_file_from_remote(NASDAQ_SYMBOLS_FILENAME)?;
+        } else {
+            nasdaq_result = _nasdaq_result;
+        }
     }
 
     if other_data.is_err() {
         create_dir_if_necessary()?;
         other_result = refresh_file_from_remote(OTHER_SYMBOLS_FILENAME)?;
-    }
-    let (_other_result, other_date) = other_data?;
-    if is_outdated(other_date) {
-        other_result = refresh_file_from_remote(OTHER_SYMBOLS_FILENAME)?;
     } else {
-        other_result = _other_result;
+        let (_other_result, other_date) = other_data.unwrap();
+        if is_outdated(other_date) {
+            other_result = refresh_file_from_remote(OTHER_SYMBOLS_FILENAME)?;
+        } else {
+            other_result = _other_result;
+        }
     }
+
     nasdaq_result.append(&mut other_result);
     Ok(nasdaq_result)
 }
@@ -77,8 +69,9 @@ fn refresh_file_from_remote<T: std::str::FromStr>(file: &str) -> Result<Vec<T>, 
         .map_err(|err| CliError::InitError{ msg: err.to_string() })?;
     fetch_and_write_nasdaq_file::<T>(&mut ftp_stream, file)?;
     ftp_stream.quit().unwrap();
-    let (result, _) = read_nasdaq_file::<T>(file)?;
-    Ok(result)
+    read_nasdaq_file::<T>(file)
+        .map(|(res, _)| res)
+        .map_err(|e| CliError::InitError { msg: e.to_string() })
 }
 
 fn create_ftp_stream() -> Result<ftp::FtpStream, ftp::FtpError> { 
@@ -150,17 +143,23 @@ fn get_file_creation_date(line: &str) -> Date<FixedOffset> {
 
 fn is_outdated(creation_date: Date<FixedOffset>) -> bool {
     let today = chrono::offset::Local::today();
-    if today.weekday().number_from_monday() > 5 || is_market_holiday(today) {
+    let est = util::est();
+    let today = today.with_timezone(&est);
+    if today.weekday().number_from_monday() > 5 || util::is_market_holiday(today) {
         false
     } else {
         creation_date != chrono::offset::Local::today()
     }
 }
 
-fn is_market_holiday(date: Date<Local>) -> bool { 
-    if date.month() == 7 && date.day() == 3 && date.year() == 2020 {
-        true
-    } else {
-        false
+fn relative_filepath(file: &str) -> PathBuf { 
+    let relative_directory = format!("./{}", SYMBOLS_DIRECTORY);
+    let path = Path::new(&relative_directory);
+    path.join(file)
+}
+
+impl From<io::Error> for CliError {
+    fn from(err: io::Error) -> Self {
+        CliError::InitError { msg: err.to_string() }
     }
 }

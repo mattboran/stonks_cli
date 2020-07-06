@@ -10,3 +10,4 @@ pub type Quote = quote::Quote;
 pub type Symbol = symbols::Symbol;
 pub type Option = options::Option;
 pub type TimeSeries = series::TimeSeriesDataModel;
+pub type TimeSeriesPoint = series::TimeSeriesPoint;
