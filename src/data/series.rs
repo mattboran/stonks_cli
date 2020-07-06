@@ -1,6 +1,3 @@
-use std::io;
-use std::str::FromStr;
-
 use chrono::{DateTime, FixedOffset};
 use serde::Deserialize;
 
@@ -53,6 +50,8 @@ mod date_format {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
+        let s = format!("{}-05:00", s);
+        
         DateTime::<FixedOffset>::parse_from_rfc3339(&s).map_err(serde::de::Error::custom)
     }
 }

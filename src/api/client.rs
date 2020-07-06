@@ -3,7 +3,7 @@ use std::error::Error;
 
 use dotenv::dotenv;
 use reqwest::{header::*, Client};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset};
 use crate::data::{Quotes, TimeSeries};
 use crate::api::endpoint::{ApiEndpoint, Requestable};
 
@@ -43,7 +43,7 @@ pub async fn get_stock_quotes(symbols: Vec<String>) -> Result<Quotes> {
     }
 }
 
-pub async fn get_time_series_data(symbol: String, start_date: DateTime<Utc>, end_date: DateTime<Utc>, interval: u8) -> Result<TimeSeries> {
+pub async fn get_time_series_data(symbol: String, start_date: DateTime<FixedOffset>, end_date: DateTime<FixedOffset>, interval: u8) -> Result<TimeSeries> {
     let client = get_client()?;
     let endpoint = ApiEndpoint::TimeSeries {symbol, start_date, end_date, interval};
     let url = endpoint.url()?;

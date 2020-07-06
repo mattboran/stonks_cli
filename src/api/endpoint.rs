@@ -1,4 +1,4 @@
-use chrono::{Datelike, DateTime, Timelike, Utc};
+use chrono::{Datelike, DateTime, Timelike, FixedOffset};
 use reqwest::Url;
 
 use crate::api::client::{Result, ApiError};
@@ -8,7 +8,7 @@ const BASE_URL: &str = "https://sandbox.tradier.com/v1";
 #[derive(Debug, Clone)]
 pub enum ApiEndpoint { 
     Quotes { symbols: Vec<String> },
-    TimeSeries { symbol: String, start_date: DateTime<Utc>, end_date: DateTime<Utc>, interval: u8 }
+    TimeSeries { symbol: String, start_date: DateTime<FixedOffset>, end_date: DateTime<FixedOffset>, interval: u8 }
 }
     
 pub trait Requestable {
@@ -26,20 +26,20 @@ impl Requestable for ApiEndpoint {
             },
             ApiEndpoint::TimeSeries { symbol, start_date, end_date, interval } => {
                 let url_str = format!("{}/{}", BASE_URL, "markets/timesales");
-                Url::parse_with_params(&url_str, &[
-                    ("interval", format!("{}min", interval)),
-                    ("start", date_to_api_string(start_date)),
-                    ("end", date_to_api_string(end_date)),
-                    ("symbol", symbol.to_string())
-                ]).map_err(|_| ApiError::ParseError)
+                let symbol = format!("symbol={}", symbol);
+                let interval = format!("interval={}min", interval);
+                let start = format!("start={}", date_to_api_string(start_date));
+                let end = format!("start={}", date_to_api_string(end_date));
+                let url = format!("{}?{}&{}&{}&{}", url_str, symbol, interval, start, end);
+                Url::parse(&url).map_err(|_| ApiError::ParseError)
             }
         }
     }
 }
 
-fn date_to_api_string(date: &DateTime<Utc>) -> String { 
+fn date_to_api_string(date: &DateTime<FixedOffset>) -> String { 
     format!(
-        "{}-{}-{} {}:{:02}", 
+        "{:04}-{:02}-{:02} {:02}:{:02}", 
         date.year(),
         date.month(),
         date.day(),
