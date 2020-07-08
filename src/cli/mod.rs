@@ -81,15 +81,15 @@ impl App {
 
     }
 
-    pub fn get_quote(&self, symbol: &Symbol) -> Option<&Quote> { 
-        self.quote_cache.get(&symbol.symbol)
+    pub fn get_quote(&self, ticker: &str) -> Option<&Quote> { 
+        self.quote_cache.get(ticker)
     }
 
-    pub fn selected_symbol(&self) -> &Symbol { 
+    pub fn selected_ticker(&self) -> &str {
         match self.active_context {
             ViewContext::Watchlist => {
                 let index = self.watchlist.state.selected().unwrap();
-                return &self.watchlist.list[index];
+                return &self.watchlist.list[index].symbol;
             }
         }
     }
@@ -113,7 +113,7 @@ pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> 
     tokio::spawn(async move {
         background_fetch_options(Arc::clone(&app)).await;
         background_fetch_watchlist_quotes(Arc::clone(&app)).await;
-        // background_fetch_graph(Arc::clone(&app)).await;
+        background_fetch_graph(Arc::clone(&app)).await;
     });
 
     let mut terminal = ui::initialize_terminal()
@@ -154,7 +154,7 @@ async fn background_fetch_graph(app: Arc<Mutex<App>>) {
     let end_day = util::last_market_open_day();
     let end_date = end_day.and_hms(16, 0, 1);
     let result = client::get_time_series_data(
-        symbol.to_string(), start_date, end_date, 15
+        symbol.to_string(), start_date, end_date, 5
     ).await;
     match result {
         Ok(series) => {

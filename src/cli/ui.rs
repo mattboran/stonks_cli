@@ -6,7 +6,7 @@ use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols,
-    widgets::{Widget, Block, Borders, List, Paragraph, ListState, Text},
+    widgets::{Widget, GraphType, Dataset, Block, Borders, List, Paragraph, ListState, Text, Chart, Axis},
     Frame
 };
 
@@ -150,7 +150,7 @@ fn draw_watchlist<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
 }
 
 fn draw_quote_section<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
-    let symbol = app.selected_symbol();
+    let symbol = app.selected_ticker();
     let text = quote_section_text(app.get_quote(symbol));
     let block: Block = Block::default()
         .borders(Borders::ALL)
@@ -218,10 +218,40 @@ fn quote_section_text(quote: Option<&Quote>) -> Vec<Text> {
 }
 
 fn draw_graph_section<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+    // let dataset: Dataset;
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Graph");
-    f.render_widget(block, area);
+
+    let selected_symbol = app.selected_ticker();
+    let graph_data = app.graph_cache.get(selected_symbol);
+    if let Some(timeseries) = graph_data {
+        let data = timeseries.to_graph_data(area.width);
+        let color = if timeseries.went_up() { Color::Green } else { Color::Red };
+        let dataset = &[Dataset::default()
+            .graph_type(GraphType::Line)
+            .marker(symbols::Marker::Braille)
+            .style(Style::default().fg(color))
+            .data(&data[..])];
+        let (min_bound, max_bound) = timeseries.min_max();
+        let labels = &[format!("{:.2}", min_bound),
+            format!("{:.2}", (max_bound + min_bound) * 0.5),
+            format!("{:.2}", max_bound)];
+        let chart = Chart::default()
+            .block(block)
+        .x_axis(Axis::default()
+            .style(Style::default().fg(Color::Gray))
+            .bounds([0.0, area.width as f64])
+            .labels(data::series::TIME_MARKERS))
+        .y_axis(Axis::default()
+            .style(Style::default().fg(Color::Gray))
+            .bounds([min_bound, max_bound])
+            .labels(labels))
+        .datasets(dataset);
+        f.render_widget(chart, area);
+    }
+
+        
 }
 
 fn draw_log_section<B: Backend>(f: &mut Frame<B>, app: &App, area: Rect) {
