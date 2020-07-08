@@ -23,32 +23,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut events = Events::new();
     loop {
-        let mut app = app.lock().await;
+        let mut lock = app.lock().await;
         terminal.draw(|mut f| {
-            ui::draw(&mut f, &mut app);
+            ui::draw(&mut f, &mut lock);
         })?;
 
         if let Some(event) = events.next().await {
             match event {
                 Event::Input(k) => match k {
                     Key::Char(c) => {
-                        app.on_key(c);
+                        lock.on_key(c);
                     },
                     Key::Up => { 
-                        app.on_up()
+                        lock.on_up(Arc::clone(&app))
                     },
                     Key::Down => {
-                        app.on_down()
+                        lock.on_down(Arc::clone(&app))
                     },
                     _ => {}
                 },
                 Event::Tick => {
-                    app.on_tick()
+                    lock.on_tick()
                 }
             }
         }
 
-        if app.should_quit {
+        if lock.should_quit {
             break;
         }
     }

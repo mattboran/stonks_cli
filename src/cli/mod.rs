@@ -65,15 +65,25 @@ impl App {
         }
     }
 
-    pub fn on_up(&mut self) {
+    pub fn on_up(&mut self, app: Arc<Mutex<App>>) {
         match self.active_context {
-            ViewContext::Watchlist => self.watchlist.previous()
+            ViewContext::Watchlist => {
+                self.watchlist.previous();
+                tokio::spawn(async move {
+                    background_fetch_graph(app).await;
+                });
+            }
         }
     }
 
-    pub fn on_down(&mut self) {
+    pub fn on_down(&mut self, app: Arc<Mutex<App>>) {
         match self.active_context {
-            ViewContext::Watchlist => self.watchlist.next()
+            ViewContext::Watchlist => {
+                self.watchlist.next();
+                tokio::spawn(async move {
+                    background_fetch_graph(app).await;
+                });
+            }
         }
     }
 
@@ -93,6 +103,7 @@ impl App {
             }
         }
     }
+
 }
 
 pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> {
@@ -147,8 +158,8 @@ async fn background_fetch_watchlist_quotes(app: Arc<Mutex<App>>) {
 
 async fn background_fetch_graph(app: Arc<Mutex<App>>) {
     let mut lock = app.lock().await;
-    let symbol = lock.watchlist.list.first().unwrap();
-    let symbol = symbol.symbol.clone();
+    let idx = lock.watchlist.state.selected().unwrap();
+    let symbol = lock.watchlist.list[idx].symbol.clone();
     let start_day = util::last_market_open_day();
     let start_date = start_day.and_hms(9,30, 0);
     let end_day = util::last_market_open_day();
