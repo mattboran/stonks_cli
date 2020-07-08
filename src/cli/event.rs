@@ -1,15 +1,14 @@
 // This file was copied from https://github.com/fdehau/tui-rs/blob/master/examples/util/event.rs
+// but altered to use the Tokio runtime and async tasks instead of std::thread
 
 use std::io;
-use std::sync::mpsc;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-// use tokio::task;
-// use tokio::time::Duration;
-use std::thread;
-use std::time::Duration;
+use tokio::task;
+use tokio::sync::mpsc;
+use tokio::time::Duration;
 
 use termion::event::Key;
 use termion::input::TermRead;
@@ -23,9 +22,9 @@ pub enum Event<I> {
 /// type is handled in its own thread and returned to a common `Receiver`
 pub struct Events {
     rx: mpsc::Receiver<Event<Key>>,
-    input_handle: thread::JoinHandle<()>,
+    input_handle: task::JoinHandle<()>,
     ignore_exit_key: Arc<AtomicBool>,
-    tick_handle: thread::JoinHandle<()>,
+    tick_handle: task::JoinHandle<()>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,16 +48,16 @@ impl Events {
     }
 
     pub fn with_config(config: Config) -> Events {
-        let (tx, rx) = mpsc::channel();
+        let (mut tx, rx) = mpsc::channel(100);
         let ignore_exit_key = Arc::new(AtomicBool::new(false));
         let input_handle = {
-            let tx = tx.clone();
+            let mut tx = tx.clone();
             let ignore_exit_key = ignore_exit_key.clone();
-            thread::spawn(move || {
+            task::spawn(async move {
                 let stdin = io::stdin();
                 for evt in stdin.keys() {
                     if let Ok(key) = evt {
-                        if let Err(err) = tx.send(Event::Input(key)) {
+                        if let Err(err) = tx.send(Event::Input(key)).await {
                             eprintln!("{}", err);
                             return;
                         }
@@ -70,9 +69,11 @@ impl Events {
             })
         };
         let tick_handle = {
-            thread::spawn(move || loop {
-                tx.send(Event::Tick).unwrap();
-                thread::sleep(config.tick_rate);
+            task::spawn(async move {
+                loop {
+                    let _ = tx.send(Event::Tick).await;
+                    tokio::time::delay_for(config.tick_rate).await;
+                }
             })
         };
         Events {
@@ -83,8 +84,8 @@ impl Events {
         }
     }
 
-    pub fn next(&self) -> Result<Event<Key>, mpsc::RecvError> {
-        self.rx.recv()
+    pub async fn next(&mut self) -> Option<Event<Key>> {
+        self.rx.recv().await
     }
 
     pub fn disable_exit_key(&mut self) {
