@@ -160,6 +160,9 @@ async fn background_fetch_graph(app: Arc<Mutex<App>>) {
     let mut lock = app.lock().await;
     let idx = lock.watchlist.state.selected().unwrap();
     let symbol = lock.watchlist.list[idx].symbol.clone();
+    if let Some(_) = lock.graph_cache.get(&symbol) {
+        return;
+    }
     let start_day = util::last_market_open_day();
     let start_date = start_day.and_hms(9,30, 0);
     let end_day = util::last_market_open_day();
@@ -169,11 +172,12 @@ async fn background_fetch_graph(app: Arc<Mutex<App>>) {
     ).await;
     match result {
         Ok(series) => {
+            let log = format!("Got timeseries data for ${}.", &symbol);
+            lock.log.push(log);
             lock.graph_cache.insert(symbol, series); 
-            lock.log.push("Got initial timeseries data".to_string());
         },
         Err(_) => {
-            lock.log.push("Failed to get initial timeseries data".to_string());
+            lock.log.push("Failed to get timeseries data".to_string());
         }
     }
 }
