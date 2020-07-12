@@ -72,16 +72,15 @@ impl TimeSeriesDataModel {
             let x = pos * (num_points as f64);
             let idx = x as usize;
             let y = data[idx].vwap;
-            result.push((x, y));
+            result.push((i as f64, y));
         }
         result
     }
 
     pub fn min_max(&self) -> (f64, f64) {
-        let data = self.data();
         let mut min = f64::MAX;
         let mut max = f64::MIN;
-        for point in data {
+        for point in self.data() {
             if point.vwap > max { 
                 max = point.vwap;
             }

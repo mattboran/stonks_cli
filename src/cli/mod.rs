@@ -69,8 +69,9 @@ impl App {
         match self.active_context {
             ViewContext::Watchlist => {
                 self.watchlist.previous();
+                let symbol = self.selected_ticker().to_string();
                 tokio::spawn(async move {
-                    background_fetch_graph(app).await;
+                    background_fetch_graph(app, symbol).await;
                 });
             }
         }
@@ -80,8 +81,9 @@ impl App {
         match self.active_context {
             ViewContext::Watchlist => {
                 self.watchlist.next();
+                let symbol = self.selected_ticker().to_string();
                 tokio::spawn(async move {
-                    background_fetch_graph(app).await;
+                    background_fetch_graph(app, symbol).await;
                 });
             }
         }
@@ -108,6 +110,7 @@ impl App {
 
 pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> {
     let symbols = loader::load_symbols()?;
+    let selected_symbol: String;
     {
         let mut app = app.lock().await;
         app.symbols = symbols;
@@ -116,6 +119,7 @@ pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> 
         app.watchlist = StatefulList::with_list(watchlist);
         app.watchlist.state.select(Some(0));
         
+        selected_symbol = app.selected_ticker().to_string();
         let msg = format!("Loaded {} symbols and watchlist.", app.symbols.len());
         app.log.push(msg);
     }
@@ -124,11 +128,11 @@ pub async fn initialize(app: Arc<Mutex<App>>) -> Result<ui::Terminal, CliError> 
     tokio::spawn(async move {
         background_fetch_options(Arc::clone(&app)).await;
         background_fetch_watchlist_quotes(Arc::clone(&app)).await;
-        background_fetch_graph(Arc::clone(&app)).await;
+        background_fetch_graph(Arc::clone(&app), selected_symbol).await;
     });
 
     let mut terminal = ui::initialize_terminal()
-        .map_err(|_| CliError::InitError { msg: "Failed to initialize terminal." .to_string() })?;
+        .map_err(|_| CliError::InitError { msg: "Failed to initialize terminal.".to_string() })?;
     terminal.hide_cursor()?;
     terminal.clear()?;
     Ok(terminal)
@@ -156,12 +160,14 @@ async fn background_fetch_watchlist_quotes(app: Arc<Mutex<App>>) {
     }
 }
 
-async fn background_fetch_graph(app: Arc<Mutex<App>>) {
-    let mut lock = app.lock().await;
-    let idx = lock.watchlist.state.selected().unwrap();
-    let symbol = lock.watchlist.list[idx].symbol.clone();
-    if let Some(_) = lock.graph_cache.get(&symbol) {
-        return;
+async fn background_fetch_graph(app: Arc<Mutex<App>>, symbol: String) {
+    {
+        let lock = app.lock().await;
+        let idx = lock.watchlist.state.selected().unwrap();
+        let symbol = lock.watchlist.list[idx].symbol.clone();
+        if let Some(_) = lock.graph_cache.get(&symbol) {
+            return;
+        }
     }
     let start_day = util::last_market_open_day();
     let start_date = start_day.and_hms(9,30, 0);
@@ -170,11 +176,12 @@ async fn background_fetch_graph(app: Arc<Mutex<App>>) {
     let result = client::get_time_series_data(
         symbol.to_string(), start_date, end_date, 5
     ).await;
+    let mut lock = app.lock().await;
     match result {
         Ok(series) => {
             let log = format!("Got timeseries data for ${}.", &symbol);
             lock.log.push(log);
-            lock.graph_cache.insert(symbol, series); 
+            lock.graph_cache.insert(symbol.to_string(), series); 
         },
         Err(_) => {
             lock.log.push("Failed to get timeseries data".to_string());

@@ -15,11 +15,11 @@ pub fn is_market_holiday(date: Date<FixedOffset>) -> bool {
 
 pub fn last_market_open_day() -> Date<FixedOffset> {
     let tz = est();
-    let today = Local::today().with_timezone(&tz);
+    let mut today = Local::today().with_timezone(&tz);
     while today.weekday().number_from_monday() > 5 {
-        today.with_day(today.day() - 1);
+        today = today.with_day(today.day() - 1).unwrap();
         if is_market_holiday(today) {
-            today.with_day(today.day() - 1);
+            today = today.with_day(today.day() - 1).unwrap();
         }
     }
     today

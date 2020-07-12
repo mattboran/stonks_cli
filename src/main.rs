@@ -35,15 +35,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         lock.on_key(c);
                     },
                     Key::Up => { 
-                        lock.on_up(Arc::clone(&app))
+                        lock.on_up(Arc::clone(&app));
                     },
                     Key::Down => {
-                        lock.on_down(Arc::clone(&app))
+                        lock.on_down(Arc::clone(&app));
                     },
                     _ => {}
                 },
                 Event::Tick => {
-                    lock.on_tick()
+                    lock.on_tick();
                 }
             }
         }
